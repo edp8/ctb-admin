@@ -9,17 +9,9 @@ import Dashboard from "./pages/Dashboard";
 import Newsletter from "./pages/Newsletter";
 
 const router = createBrowserRouter([
-  // Par défaut, on redirige vers /login
   { path: "/", element: <Navigate to="/login" replace /> },
-
-  // Public
   { path: "/login", element: <Login /> },
-
-  // Protégées (ADMIN uniquement si tu veux durcir)
   { path: "/dashboard", element: <RequireAuth><Dashboard /></RequireAuth> },
-  { path: "/newsletter", element: <RequireAuth requireAdmin><Newsletter /></RequireAuth> },
-
-  // 404 simple
   { path: "*", element: <Navigate to="/login" replace /> },
 ]);
 

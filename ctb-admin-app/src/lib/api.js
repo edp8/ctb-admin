@@ -4,7 +4,6 @@ export const api = axios.create({
   baseURL: import.meta.env.VITE_API_URL
 });
 
-// Intercepteur pour ajouter le Bearer token
 export function attachAuthInterceptor(getToken, onUnauthorized) {
   api.interceptors.request.use((config) => {
     const t = getToken?.();
@@ -16,7 +15,11 @@ export function attachAuthInterceptor(getToken, onUnauthorized) {
     (res) => res,
     (err) => {
       const status = err?.response?.status;
-      if (status === 401 || status === 403) {
+      const url = err?.config?.url || "";
+      // ⬇️ NE PAS déloguer si c'est la route de login
+      const isLoginRequest = url.includes("/auth/login");
+
+      if (!isLoginRequest && (status === 401 || status === 403)) {
         onUnauthorized?.();
       }
       return Promise.reject(err);

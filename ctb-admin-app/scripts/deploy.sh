@@ -26,7 +26,7 @@ if [ -f ./dist/404.html ]; then
     --cache-control "no-store, max-age=0, must-revalidate"
 fi
 
-echo "🧊 Invalidation CloudFront…"
-aws cloudfront create-invalidation --distribution-id "$CF_DISTRIBUTION_ID" --paths "/*"
+# echo "🧊 Invalidation CloudFront…"
+# aws cloudfront create-invalidation --distribution-id "$CF_DISTRIBUTION_ID" --paths "/*"
 
 echo "✅ Deploy terminé."
