@@ -182,7 +182,7 @@ export default function Dashboard() {
           <CardTitle>Pensées</CardTitle>
           <CardDesc>Publier des pensées courtes et inspirantes.</CardDesc>
           <Actions>
-            <DisabledBtn disabled title="Fonction bientôt disponible">À venir</DisabledBtn>
+            <PrimaryLink to="/quotes">Ouvrir</PrimaryLink>
           </Actions>
         </Card>
       </Grid>

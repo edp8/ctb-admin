@@ -8,6 +8,7 @@ import {
 } from "react-router-dom";
 import { AuthProvider } from "./context/AuthProvider";
 import RequireAuth from "./components/RequireAuth";
+import QuotesPage from "./pages/Quotes";
 
 // 💡 Lazy loading des pages pour perf
 const Login = lazy(() => import("./pages/Login"));
@@ -23,6 +24,7 @@ const router = createBrowserRouter([
     children: [
       { path: "/dashboard", element: <Dashboard /> },
       { path: "/newsletter", element: <Newsletter /> },
+      { path: "/quotes", element: <QuotesPage /> },
     ],
   },
   { path: "*", element: <Navigate to="/login" replace /> },
