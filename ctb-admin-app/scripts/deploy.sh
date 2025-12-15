@@ -27,6 +27,6 @@ if [ -f ./dist/404.html ]; then
 fi
 
 # echo "🧊 Invalidation CloudFront…"
-# aws cloudfront create-invalidation --distribution-id "$CF_DISTRIBUTION_ID" --paths "/*"
+aws cloudfront create-invalidation --distribution-id "$CF_DISTRIBUTION_ID" --paths "/*"
 
 echo "✅ Deploy terminé."

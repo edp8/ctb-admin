@@ -1,24 +1,39 @@
-import { StrictMode } from "react";
+// src/main.jsx
+import { StrictMode, Suspense, lazy } from "react";
 import { createRoot } from "react-dom/client";
-import { createBrowserRouter, RouterProvider, Navigate } from "react-router-dom";
+import {
+  createBrowserRouter,
+  RouterProvider,
+  Navigate,
+} from "react-router-dom";
 import { AuthProvider } from "./context/AuthProvider";
 import RequireAuth from "./components/RequireAuth";
 
-import Login from "./pages/Login";
-import Dashboard from "./pages/Dashboard";
-import Newsletter from "./pages/Newsletter";
+// 💡 Lazy loading des pages pour perf
+const Login = lazy(() => import("./pages/Login"));
+const Dashboard = lazy(() => import("./pages/Dashboard"));
+const Newsletter = lazy(() => import("./pages/Newsletter"));
 
+// ✅ Définition claire et future-proof des routes
 const router = createBrowserRouter([
   { path: "/", element: <Navigate to="/login" replace /> },
   { path: "/login", element: <Login /> },
-  { path: "/dashboard", element: <RequireAuth><Dashboard /></RequireAuth> },
+  {
+    element: <RequireAuth />, // tout ce qui est protégé
+    children: [
+      { path: "/dashboard", element: <Dashboard /> },
+      { path: "/newsletter", element: <Newsletter /> },
+    ],
+  },
   { path: "*", element: <Navigate to="/login" replace /> },
 ]);
 
 createRoot(document.getElementById("root")).render(
   <StrictMode>
     <AuthProvider>
-      <RouterProvider router={router} />
+      <Suspense fallback={<div style={{ padding: 24 }}>Chargement...</div>}>
+        <RouterProvider router={router} />
+      </Suspense>
     </AuthProvider>
   </StrictMode>
 );

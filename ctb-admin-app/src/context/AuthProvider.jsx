@@ -1,83 +1,76 @@
+// src/context/AuthProvider.jsx
 import { createContext, useContext, useEffect, useMemo, useState } from "react";
 import { api, attachAuthInterceptor } from "../lib/api";
 
 const AuthContext = createContext(null);
 
 function safeParse(json) {
-    try {
-        if (!json) return null;
-        if (json === 'undefined' || json === 'null') return null;
-        return JSON.parse(json);
-    } catch {
-        return null;
-    }
+  try {
+    if (!json || json === "undefined" || json === "null") return null;
+    return JSON.parse(json);
+  } catch { return null; }
 }
 
 export function AuthProvider({ children }) {
-    const [token, setToken] = useState(() => {
-        const t = localStorage.getItem("ctb_token");
-        return (t && t !== 'undefined' && t !== 'null') ? t : "";
-    });
-    const [user, setUser] = useState(() => safeParse(localStorage.getItem("ctb_user")));
-    const [loading, setLoading] = useState(!!token);
+  const tokenInit = (() => {
+    const t = localStorage.getItem("ctb_token");
+    return t && t !== "undefined" && t !== "null" ? t : "";
+  })();
 
-    const logout = () => {
-        setToken("");
-        setUser(null);
-        localStorage.removeItem("ctb_token");
-        localStorage.removeItem("ctb_user");
-        if (location.pathname !== "/login") location.replace("/login");
-    };
+  const [token, setToken] = useState(tokenInit);
+  const [user, setUser] = useState(() => safeParse(localStorage.getItem("ctb_user")));
+  const [loading, setLoading] = useState(!!tokenInit);
 
-    // Attacher les intercepteurs axios une seule fois
-    useEffect(() => {
-        attachAuthInterceptor(
-            () => token,
-            () => logout()
-        );
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, []);
+  const logout = () => {
+    localStorage.removeItem("ctb_token");
+    localStorage.removeItem("ctb_user");
+    setToken("");
+    setUser(null);
+    // Laisse le guard router gérer la redirection, pas besoin de forcer ici
+  };
 
-    // Si on a déjà un token au chargement, on valide avec /auth/me
-    useEffect(() => {
-        let cancelled = false;
-        async function fetchMe() {
-            if (!token) { setLoading(false); return; }
-            try {
-                const { data } = await api.get("/auth/me");
-                if (cancelled) return;
-                setUser(data.user);
-                localStorage.setItem("ctb_user", JSON.stringify(data.user));
-            } catch {
-                if (!cancelled) logout();
-            } finally {
-                if (!cancelled) setLoading(false);
-            }
-        }
-        fetchMe();
-        return () => { cancelled = true; };
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [token]);
+  // Attacher les intercepteurs axios une seule fois
+  useEffect(() => {
+    attachAuthInterceptor(
+      () => token,
+      () => logout()
+    );
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
-    async function login(email, password) {
-        console.log("[Auth] login() start", email);
-        const { data } = await api.post("/auth/login", { email, password });
-        console.log("[Auth] backend response:", data);
-        setToken(data.token);
+  // Valider le token au démarrage / quand il change
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      if (!token) { setLoading(false); return; }
+      try {
+        const { data } = await api.get("/auth/me");
+        if (cancelled) return;
         setUser(data.user);
-        localStorage.setItem("ctb_token", data.token ?? "");
-        localStorage.setItem("ctb_user", JSON.stringify(data.user ?? null));
-        console.log("[Auth] user set, navigating soon");
-        return data.user;
-    }
+        localStorage.setItem("ctb_user", JSON.stringify(data.user));
+      } catch {
+        if (!cancelled) logout();
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [token]);
 
-    const value = useMemo(() => ({
-        token, user, loading, login, logout, isAdmin: user?.role === "ADMIN"
-    }), [token, user, loading]);
+  async function login(email, password) {
+    const { data } = await api.post("/auth/login", { email, password });
+    localStorage.setItem("ctb_token", data.token ?? "");
+    localStorage.setItem("ctb_user", JSON.stringify(data.user ?? null));
+    setToken(data.token);
+    setUser(data.user);
+    return data.user;
+  }
 
-    return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
+  const value = useMemo(() => ({
+    token, user, loading, login, logout, isAdmin: user?.role === "ADMIN"
+  }), [token, user, loading]);
+
+  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }
 
-export function useAuth() {
-    return useContext(AuthContext);
-}
+export function useAuth() { return useContext(AuthContext); }
