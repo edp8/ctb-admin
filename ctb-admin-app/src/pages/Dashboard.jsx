@@ -174,7 +174,7 @@ export default function Dashboard() {
           <CardTitle>Capsules</CardTitle>
           <CardDesc>Gérer vos contenus vidéo/audio payants.</CardDesc>
           <Actions>
-            <DisabledBtn disabled title="Fonction bientôt disponible">À venir</DisabledBtn>
+            <PrimaryLink to="/capsules">Ouvrir</PrimaryLink>
           </Actions>
         </Card>
 

@@ -1,7 +1,8 @@
+// src/pages/QuotesPage.jsx
 import { useEffect, useState } from "react";
 import styled, { keyframes } from "styled-components";
-import { useAuth } from "../context/AuthProvider";
 import { useNavigate } from "react-router-dom";
+import { getQuotes, updateQuote } from "../lib/api";
 
 const COLOR_BASE = "#E87461";
 const COLOR_ACCENT = "#EBA844";
@@ -77,12 +78,6 @@ const CardTitle = styled.h3`
   color: ${COLOR_ACCENT};
 `;
 
-const CardSubtitle = styled.p`
-  margin: 0;
-  font-size: 13px;
-  color: #777;
-`;
-
 const Label = styled.label`
   display: flex;
   flex-direction: column;
@@ -149,12 +144,12 @@ const StatusText = styled.span`
 `;
 
 const SmallInfo = styled.p`
+  width: 100%;
   max-width: 960px;
   font-size: 13px;
   color: #555;
   margin: 0 0 20px 0;
   line-height: 20px;
-
 `;
 
 // Configuration des sections de pensées
@@ -171,19 +166,14 @@ const QUOTE_SECTIONS = [
 ];
 
 export default function QuotesPage() {
-  const { user, logout } = useAuth();
-
-  // Structure : { [key]: { current: string, draft: string, status: "idle" | "saving" | "success" | "error" } }
+  const navigate = useNavigate();
   const [quotes, setQuotes] = useState({});
 
-  // Chargement initial des pensées (à adapter à ton backend)
   useEffect(() => {
     async function fetchQuotes() {
       try {
-        const res = await fetch("/api/admin/quotes");
-        if (!res.ok) throw new Error("Erreur de chargement des pensées");
-        const data = await res.json();
-        // data attendu par ex: { home: "texte...", therapiesAlternatives: "..." }
+        const { data } = await getQuotes();
+
         const initial = {};
         QUOTE_SECTIONS.forEach(({ key }) => {
           initial[key] = {
@@ -195,7 +185,8 @@ export default function QuotesPage() {
         });
         setQuotes(initial);
       } catch (err) {
-        // Si tu veux, tu peux gérer une erreur globale ici
+        console.error("Erreur chargement pensées:", err);
+
         const fallback = {};
         QUOTE_SECTIONS.forEach(({ key }) => {
           fallback[key] = {
@@ -227,9 +218,9 @@ export default function QuotesPage() {
   const handleSave = async (key) => {
     const item = quotes[key];
     if (!item) return;
+
     const newText = item.draft.trim();
 
-    // Tu peux décider d'interdire la sauvegarde si champ vide
     if (!newText) {
       setQuotes((prev) => ({
         ...prev,
@@ -244,21 +235,11 @@ export default function QuotesPage() {
 
     setQuotes((prev) => ({
       ...prev,
-      [key]: {
-        ...prev[key],
-        status: "saving",
-        errorMessage: "",
-      },
+      [key]: { ...prev[key], status: "saving", errorMessage: "" },
     }));
 
     try {
-      const res = await fetch(`/api/admin/quotes/${key}`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ text: newText }),
-      });
-
-      if (!res.ok) throw new Error("Erreur de sauvegarde");
+      await updateQuote(key, newText);
 
       setQuotes((prev) => ({
         ...prev,
@@ -271,6 +252,8 @@ export default function QuotesPage() {
         },
       }));
     } catch (err) {
+      console.error("Erreur sauvegarde pensée:", err);
+
       setQuotes((prev) => ({
         ...prev,
         [key]: {
@@ -292,8 +275,10 @@ export default function QuotesPage() {
       </Header>
 
       <SmallInfo>
-        Modifiez les pensées affichées sur les différentes pages du site. Gardez la longueur à 1-2 phrases maximum, sinon le visuel n'est pas garantie.
-        Écrivez la nouvelle pensée, puis cliquez sur <strong>Publier la pensée</strong>.
+        Modifiez les pensées affichées sur les différentes pages du site. Gardez
+        la longueur à 1-2 phrases maximum, sinon le visuel n'est pas garantie.
+        Écrivez la nouvelle pensée, puis cliquez sur{" "}
+        <strong>Publier la pensée</strong>.
       </SmallInfo>
 
       <Content>
@@ -325,18 +310,14 @@ export default function QuotesPage() {
               </Label>
 
               <ActionsRow>
-                <SaveButton
-                  onClick={() => handleSave(key)}
-                  disabled={isSaving}
-                >
+                <SaveButton onClick={() => handleSave(key)} disabled={isSaving}>
                   {isSaving ? "Publication..." : "Publier la pensée"}
                 </SaveButton>
 
                 {isSuccess && (
-                  <StatusText>
-                    ✅ Pensée mise à jour avec succès.
-                  </StatusText>
+                  <StatusText>✅ Pensée mise à jour avec succès.</StatusText>
                 )}
+
                 {isError && (
                   <StatusText $error>
                     ⚠ {item.errorMessage || "Erreur lors de la mise à jour."}
