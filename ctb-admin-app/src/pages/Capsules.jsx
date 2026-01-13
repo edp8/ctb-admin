@@ -188,6 +188,7 @@ const ActionsRow = styled.div`
   gap: 10px;
   flex-wrap: wrap;
   margin-top: 6px;
+  align-items: center;
 `;
 
 const Button = styled.button`
@@ -231,10 +232,8 @@ const Modal = styled.div`
   border-radius: 16px;
   box-shadow: 0 12px 30px rgba(0,0,0,0.18);
   padding: 16px;
-
   max-height: 85vh;
   overflow: auto;
-
   * { box-sizing: border-box; }
 `;
 
@@ -319,6 +318,27 @@ const StatusText = styled.p`
   color: ${({ $error }) => ($error ? "#c0392b" : "#2e7d32")};
 `;
 
+const ErrorText = styled.p`
+  margin: 0;
+  font-size: 12px;
+  color: #c0392b;
+`;
+
+const FieldInputError = styled(FieldInput)`
+  border-color: #c0392b;
+  box-shadow: 0 0 0 2px rgba(192, 57, 43, 0.15);
+`;
+
+const FieldSelectError = styled(FieldSelect)`
+  border-color: #c0392b;
+  box-shadow: 0 0 0 2px rgba(192, 57, 43, 0.15);
+`;
+
+const TextAreaError = styled(TextArea)`
+  border-color: #c0392b;
+  box-shadow: 0 0 0 2px rgba(192, 57, 43, 0.15);
+`;
+
 function typeLabel(t) {
   return t === "audio" ? "Audio" : "Vidéo";
 }
@@ -328,16 +348,10 @@ function emptyForm() {
     title: "",
     description: "",
     category: "",
-    type: "video",
+    type: "audio",
     duration: "",
     price: "",
     date: new Date().toISOString().slice(0, 10),
-
-    // ⚠️ Caché à l’admin (mais requis backend)
-    s3Key: "",
-
-    // Affiché uniquement comme preview (image de présentation)
-    thumbnail: "",
   };
 }
 
@@ -347,7 +361,11 @@ async function uploadToS3PresignedPUT({ url, file }) {
     headers: { "Content-Type": file.type || "application/octet-stream" },
     body: file,
   });
-  if (!res.ok) throw new Error("Upload S3 échoué");
+
+  if (!res.ok) {
+    const text = await res.text().catch(() => "");
+    throw new Error(`Upload S3 échoué (${res.status}) ${text}`);
+  }
 }
 
 export default function CapsulesPage() {
@@ -368,16 +386,17 @@ export default function CapsulesPage() {
   const [saving, setSaving] = useState(false);
   const [status, setStatus] = useState({ ok: "", error: "" });
 
-  // fichiers visibles à l’admin
-  const [mediaFile, setMediaFile] = useState(null); // mp4 / mp3
-  const [thumbFile, setThumbFile] = useState(null); // image/*
+  const [mediaFile, setMediaFile] = useState(null); // required on create
+  const [thumbFile, setThumbFile] = useState(null); // optional
+
+  const [errors, setErrors] = useState({});
 
   async function refresh() {
     setLoading(true);
     setErr("");
     try {
       const { data } = await getAdminCapsules();
-      setItems(data?.items || data || []);
+      setItems(data?.items || []);
     } catch (e) {
       console.error("[Admin Capsules] load error:", e);
       setErr("Impossible de charger les capsules.");
@@ -411,13 +430,12 @@ export default function CapsulesPage() {
     setThumbFile(null);
     setStatus({ ok: "", error: "" });
     setOpen(true);
+    setErrors({});
   };
 
   const openEdit = (capsule) => {
     setMode("edit");
     setEditingId(capsule.id);
-
-    // ✅ On garde s3Key caché (utile si on ne remplace pas le fichier)
     setForm({
       title: capsule.title || "",
       description: capsule.description || "",
@@ -425,18 +443,14 @@ export default function CapsulesPage() {
       type: capsule.type || "video",
       duration: capsule.duration || "",
       price: capsule.price ?? "",
-      date: capsule.date
-        ? String(capsule.date).slice(0, 10)
-        : new Date().toISOString().slice(0, 10),
-
-      thumbnail: capsule.thumbnail || "",
-      s3Key: capsule.s3Key || "",
+      date: capsule.date ? String(capsule.date).slice(0, 10) : new Date().toISOString().slice(0, 10),
+      // garde thumbnail affiché côté carte, mais on ne le gère pas ici
     });
-
     setMediaFile(null);
     setThumbFile(null);
     setStatus({ ok: "", error: "" });
     setOpen(true);
+    setErrors({});
   };
 
   const closeModal = () => {
@@ -447,84 +461,92 @@ export default function CapsulesPage() {
   const onChange = (key, value) => setForm((p) => ({ ...p, [key]: value }));
 
   const validate = () => {
-    if (!form.title.trim()) return "Le titre est requis.";
-    if (!form.description.trim()) return "La description est requise.";
-    if (!form.category.trim()) return "La catégorie est requise.";
-    if (!form.type) return "Le type est requis.";
-    if (!form.duration.trim()) return "La durée est requise.";
-    if (form.price === "" || Number.isNaN(Number(form.price))) return "Le prix est invalide.";
-    if (!form.date) return "La date est requise.";
+    const next = {};
 
-    // ✅ Création: on exige le fichier capsule (puisqu’on ne montre pas s3Key)
-    if (mode === "create" && !mediaFile) {
-      return "Veuillez choisir le fichier de la capsule (audio/vidéo).";
+    if (!form.title.trim()) next.title = "Titre requis.";
+    if (!form.category.trim()) next.category = "Catégorie requise.";
+    if (!form.type) next.type = "Type requis.";
+    if (!form.duration.trim()) next.duration = "Durée requise.";
+    if (!form.description.trim()) next.description = "Description requise.";
+    if (!form.date) next.date = "Date requise.";
+
+    // Prix: obligatoire + > 0
+    const priceNum = Number(form.price);
+    if (form.price === "" || Number.isNaN(priceNum)) next.price = "Prix invalide.";
+    else if (priceNum <= 0) next.price = "Le prix doit être > 0.";
+
+    // Create: fichiers obligatoires
+    if (mode === "create") {
+      if (!mediaFile) next.mediaFile = "Fichier audio/vidéo requis.";
+      if (!thumbFile) next.thumbFile = "Image de présentation requise.";
     }
 
-    // ✅ Édition: si on ne change pas le fichier, on garde l’ancien s3Key (caché)
-    if (mode === "edit" && !mediaFile && !form.s3Key) {
-      return "Fichier capsule manquant (s3Key introuvable).";
-    }
-
-    return "";
+    setErrors(next);
+    return Object.keys(next).length === 0;
   };
 
   const handleSave = async () => {
     setStatus({ ok: "", error: "" });
 
-    const v = validate();
-    if (v) {
-      setStatus({ ok: "", error: v });
+    const ok = validate();
+    if (!ok) {
+      setStatus({ ok: "", error: "⚠️ Merci de compléter les champs en rouge." });
       return;
     }
 
     setSaving(true);
     try {
-      let s3Key = form.s3Key; // caché
-      let thumbnail = form.thumbnail; // affiché comme preview
-
-      // 1) Upload capsule si un nouveau fichier est choisi
-      if (mediaFile) {
-        const { data } = await getCapsuleUploadUrl({
+      if (mode === "create") {
+        // 1) Demande URL upload média
+        const upMedia = await getCapsuleUploadUrl({
           filename: mediaFile.name,
           contentType: mediaFile.type,
         });
-        await uploadToS3PresignedPUT({ url: data.url, file: mediaFile });
-        s3Key = data.key; // ✅ clé S3 générée par le backend
-      }
 
-      // 2) Upload image de présentation si choisie
-      if (thumbFile) {
-        const { data } = await getThumbnailUploadUrl({
-          filename: thumbFile.name,
-          contentType: thumbFile.type,
-        });
-        await uploadToS3PresignedPUT({ url: data.url, file: thumbFile });
+        // 2) PUT vers S3
+        await uploadToS3PresignedPUT({ url: upMedia.data.url, file: mediaFile });
+        const s3Key = upMedia.data.key;
 
-        // Selon ton backend: soit publicUrl, soit key
-        // Ici on privilégie publicUrl si dispo.
-        thumbnail = data.publicUrl || thumbnail || "";
-      }
+        // 3) Thumbnail (optionnel)
+        let thumbnail = null;
+        if (thumbFile) {
+          const upThumb = await getThumbnailUploadUrl({
+            filename: thumbFile.name,
+            contentType: thumbFile.type,
+          });
+          await uploadToS3PresignedPUT({ url: upThumb.data.url, file: thumbFile });
 
-      const payload = {
-        title: form.title.trim(),
-        description: form.description.trim(),
-        category: form.category.trim(),
-        type: form.type,
-        duration: form.duration.trim(),
-        price: Number(form.price),
-        date: form.date,
+          // selon ton backend: publicUrl ou key
+          thumbnail = upThumb.data.publicUrl || upThumb.data.key || null;
+        }
 
-        // requis backend
-        s3Key,
+        // 4) Création DB (JSON)
+        const payload = {
+          title: form.title.trim(),
+          description: form.description.trim(),
+          category: form.category.trim(),
+          type: form.type,
+          duration: form.duration.trim(),
+          price: Number(form.price),
+          date: form.date,
+          s3Key,
+          thumbnail,
+        };
 
-        // image preview
-        thumbnail: thumbnail || null,
-      };
-
-      if (mode === "create") {
         await createAdminCapsule(payload);
         setStatus({ ok: "✅ Capsule créée.", error: "" });
       } else {
+        // ✅ update simple (JSON)
+        const payload = {
+          title: form.title.trim(),
+          description: form.description.trim(),
+          category: form.category.trim(),
+          type: form.type,
+          duration: form.duration.trim(),
+          price: Number(form.price),
+          date: form.date,
+        };
+
         await updateAdminCapsule(editingId, payload);
         setStatus({ ok: "✅ Capsule mise à jour.", error: "" });
       }
@@ -533,7 +555,7 @@ export default function CapsulesPage() {
       setOpen(false);
     } catch (e) {
       console.error("[Admin Capsules] save error:", e);
-      setStatus({ ok: "", error: "Erreur lors de la sauvegarde." });
+      setStatus({ ok: "", error: e?.message || "Erreur lors de la sauvegarde." });
     } finally {
       setSaving(false);
     }
@@ -541,7 +563,7 @@ export default function CapsulesPage() {
 
   const handleDelete = async (capsule) => {
     const ok = window.confirm(
-      `Supprimer la capsule "${capsule.title}" ?\n\n⚠️ (Le backend devrait aussi supprimer le fichier dans S3.)`
+      `Supprimer la capsule "${capsule.title}" ?\n\n⚠️ Le backend doit aussi supprimer le fichier sur S3.`
     );
     if (!ok) return;
 
@@ -565,8 +587,7 @@ export default function CapsulesPage() {
       </Header>
 
       <SmallInfo>
-        Vous pouvez <strong>ajouter</strong>, <strong>modifier</strong> et <strong>supprimer</strong> des capsules.
-        <br />
+        L’administrateur peut <strong>ajouter</strong>, <strong>modifier</strong> et <strong>supprimer</strong> des capsules, sans voir d’informations techniques.
       </SmallInfo>
 
       <Toolbar>
@@ -629,77 +650,134 @@ export default function CapsulesPage() {
               <BackButton onClick={closeModal}>Fermer</BackButton>
             </ModalHeader>
 
+            {/* === FORMULAIRE === */}
             <Grid2>
               <Label>
                 Titre
-                <FieldInput value={form.title} onChange={(e) => onChange("title", e.target.value)} />
+                <FieldInput
+                  value={form.title}
+                  onChange={(e) => onChange("title", e.target.value)}
+                />
+                {!form.title.trim() && status.error && (
+                  <StatusText $error>Champ requis</StatusText>
+                )}
               </Label>
 
               <Label>
                 Catégorie
-                <FieldInput value={form.category} onChange={(e) => onChange("category", e.target.value)} />
+                <FieldInput
+                  value={form.category}
+                  onChange={(e) => onChange("category", e.target.value)}
+                />
+                {!form.category.trim() && status.error && (
+                  <StatusText $error>Champ requis</StatusText>
+                )}
               </Label>
 
               <Label>
                 Type
-                <FieldSelect value={form.type} onChange={(e) => onChange("type", e.target.value)}>
-                  <option value="video">Vidéo</option>
+                <FieldSelect
+                  value={form.type}
+                  onChange={(e) => onChange("type", e.target.value)}
+                >
+                  <option value="">— Choisir —</option>
                   <option value="audio">Audio</option>
+                  <option value="video">Vidéo</option>
                 </FieldSelect>
+                {!form.type && status.error && (
+                  <StatusText $error>Champ requis</StatusText>
+                )}
               </Label>
 
               <Label>
                 Durée (ex: 12m30s)
-                <FieldInput value={form.duration} onChange={(e) => onChange("duration", e.target.value)} />
+                <FieldInput
+                  value={form.duration}
+                  onChange={(e) => onChange("duration", e.target.value)}
+                />
+                {!form.duration.trim() && status.error && (
+                  <StatusText $error>Champ requis</StatusText>
+                )}
               </Label>
 
               <Label>
-                Prix (ex: 15)
-                <FieldInput value={form.price} onChange={(e) => onChange("price", e.target.value)} />
+                Prix
+                <FieldInput
+                  value={form.price}
+                  onChange={(e) => onChange("price", e.target.value)}
+                />
+                {(form.price === "" || isNaN(Number(form.price))) && status.error && (
+                  <StatusText $error>Prix invalide</StatusText>
+                )}
               </Label>
 
               <Label>
                 Date
-                <FieldInput type="date" value={form.date} onChange={(e) => onChange("date", e.target.value)} />
+                <FieldInput
+                  type="date"
+                  value={form.date}
+                  onChange={(e) => onChange("date", e.target.value)}
+                />
+                {!form.date && status.error && (
+                  <StatusText $error>Champ requis</StatusText>
+                )}
               </Label>
             </Grid2>
 
             <div style={{ marginTop: 10 }}>
               <Label>
                 Description
-                <TextArea value={form.description} onChange={(e) => onChange("description", e.target.value)} />
+                <TextArea
+                  value={form.description}
+                  onChange={(e) => onChange("description", e.target.value)}
+                />
+                {!form.description.trim() && status.error && (
+                  <StatusText $error>Champ requis</StatusText>
+                )}
               </Label>
             </div>
 
-            <Grid2 style={{ marginTop: 10 }}>
-              <Label>
-                Image de présentation
-                <FieldInput
-                  type="file"
-                  accept="image/*"
-                  onChange={(e) => setThumbFile(e.target.files?.[0] || null)}
-                />
-              </Label>
+            {/* === FICHIERS === */}
+            {mode === "create" ? (
+              <>
+                <Grid2 style={{ marginTop: 10 }}>
+                  <Label>
+                    Image de présentation
+                    <FieldInput
+                      type="file"
+                      accept="image/*"
+                      onChange={(e) => setThumbFile(e.target.files?.[0] || null)}
+                    />
+                    {!thumbFile && status.error && (
+                      <StatusText $error>Image requise</StatusText>
+                    )}
+                  </Label>
 
-              <Label>
-                Fichier capsule (audio/vidéo)
-                <FieldInput
-                  type="file"
-                  accept="audio/*,video/*"
-                  onChange={(e) => setMediaFile(e.target.files?.[0] || null)}
-                />
-              </Label>
-            </Grid2>
+                  <Label>
+                    Fichier capsule (audio / vidéo)
+                    <FieldInput
+                      type="file"
+                      accept="audio/*,video/*"
+                      onChange={(e) => setMediaFile(e.target.files?.[0] || null)}
+                    />
+                    {!mediaFile && status.error && (
+                      <StatusText $error>Fichier requis</StatusText>
+                    )}
+                  </Label>
+                </Grid2>
 
-            <SmallInfo style={{ marginTop: 10 }}>
-              {mode === "create" ? (
-                <>ℹ️ Pour créer une capsule, choisissez au minimum le <strong>fichier capsule</strong>.</>
-              ) : (
-                <>ℹ️ En modification, si vous ne choisissez pas de fichier capsule, l’ancien fichier est conservé.</>
-              )}
-            </SmallInfo>
+                <SmallInfo style={{ marginTop: 10 }}>
+                  ℹ️ Le fichier est envoyé vers S3 avant la création en base de données.
+                </SmallInfo>
+              </>
+            ) : (
+              <SmallInfo style={{ marginTop: 10 }}>
+                ℹ️ La modification ne remplace pas le fichier capsule existant.
+              </SmallInfo>
+            )}
 
-            <ActionsRow style={{ marginTop: 14, alignItems: "center" }}>
+            {/* === ACTIONS === */}
+            <ActionsRow style={{ marginTop: 14 }}>
               <PrimaryButton onClick={handleSave} disabled={saving}>
                 {saving ? "Sauvegarde..." : mode === "create" ? "Créer" : "Mettre à jour"}
               </PrimaryButton>

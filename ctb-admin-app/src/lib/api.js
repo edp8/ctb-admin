@@ -59,12 +59,15 @@ export const updateQuote = (key, text) =>
 // --- Capsules ---
 export const getAdminCapsules = () => api.get("/admin/capsules");
 
+// ✅ CREATE (JSON) : payload = { title, description, category, type, duration, price, thumbnail, s3Key, date }
 export const createAdminCapsule = (payload) =>
   api.post("/admin/capsules", payload);
 
+// ✅ UPDATE (JSON)
 export const updateAdminCapsule = (id, payload) =>
   api.put(`/admin/capsules/${id}`, payload);
 
+// ✅ DELETE
 export const deleteAdminCapsule = (id) =>
   api.delete(`/admin/capsules/${id}`);
 
@@ -72,6 +75,5 @@ export const deleteAdminCapsule = (id) =>
 export const getCapsuleUploadUrl = ({ filename, contentType }) =>
   api.post("/admin/capsules/upload-url", { filename, contentType });
 
-// (optionnel) pour thumbnail si tu veux aussi upload l'image sur S3
 export const getThumbnailUploadUrl = ({ filename, contentType }) =>
   api.post("/admin/capsules/thumbnail-upload-url", { filename, contentType });
