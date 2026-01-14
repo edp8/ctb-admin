@@ -13,7 +13,7 @@ import {
 const COLOR_BASE = "#E87461";
 const COLOR_ACCENT = "#EBA844";
 
-const FALLBACK_THUMB = "https://via.placeholder.com/220x160?text=Capsule";
+const FALLBACK_THUMB = "/assets/images/therapies/sophrologie.jpg";
 const S3_PUBLIC_BASE = "https://ctb-capsules.s3.ca-central-1.amazonaws.com/";
 
 const fadeIn = keyframes`
