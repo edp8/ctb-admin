@@ -13,6 +13,9 @@ import {
 const COLOR_BASE = "#E87461";
 const COLOR_ACCENT = "#EBA844";
 
+const FALLBACK_THUMB = "https://via.placeholder.com/220x160?text=Capsule";
+const S3_PUBLIC_BASE = "https://ctb-capsules.s3.ca-central-1.amazonaws.com/";
+
 const fadeIn = keyframes`
   from { opacity:0; transform: translateY(10px); }
   to { opacity:1; transform: translateY(0); }
@@ -355,6 +358,19 @@ function emptyForm() {
   };
 }
 
+function resolveThumbSrc(thumbnail) {
+  if (!thumbnail) return FALLBACK_THUMB;
+
+  // URL complète
+  if (thumbnail.startsWith("http://") || thumbnail.startsWith("https://")) return thumbnail;
+
+  // path local
+  if (thumbnail.startsWith("/assets/")) return thumbnail;
+
+  // sinon s3Key
+  return `${S3_PUBLIC_BASE}${thumbnail}`;
+}
+
 async function uploadToS3PresignedPUT({ url, file }) {
   const res = await fetch(url, {
     method: "PUT",
@@ -635,8 +651,9 @@ export default function CapsulesPage() {
             <Card key={c.id}>
               <CardTop>
                 <Thumb
-                  src={c.thumbnail || "https://via.placeholder.com/220x160?text=Capsule"}
+                  src={resolveThumbSrc(c.thumbnail)}
                   alt={c.title}
+                  onError={(e) => { e.currentTarget.src = FALLBACK_THUMB; }}
                 />
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <CardTitle>{c.title}</CardTitle>
