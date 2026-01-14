@@ -381,13 +381,14 @@ export default function CapsulesPage() {
   const [open, setOpen] = useState(false);
   const [mode, setMode] = useState("create"); // create | edit
   const [editingId, setEditingId] = useState(null);
+  const [editingCapsule, setEditingCapsule] = useState(null); // ✅ NEW
 
   const [form, setForm] = useState(emptyForm());
   const [saving, setSaving] = useState(false);
   const [status, setStatus] = useState({ ok: "", error: "" });
 
-  const [mediaFile, setMediaFile] = useState(null); // required on create
-  const [thumbFile, setThumbFile] = useState(null); // optional
+  const [mediaFile, setMediaFile] = useState(null); // create required / edit optional
+  const [thumbFile, setThumbFile] = useState(null); // create required / edit optional
 
   const [errors, setErrors] = useState({});
 
@@ -425,6 +426,7 @@ export default function CapsulesPage() {
   const openCreate = () => {
     setMode("create");
     setEditingId(null);
+    setEditingCapsule(null); // ✅
     setForm(emptyForm());
     setMediaFile(null);
     setThumbFile(null);
@@ -436,18 +438,18 @@ export default function CapsulesPage() {
   const openEdit = (capsule) => {
     setMode("edit");
     setEditingId(capsule.id);
+    setEditingCapsule(capsule); // ✅ important
     setForm({
       title: capsule.title || "",
       description: capsule.description || "",
       category: capsule.category || "",
-      type: capsule.type || "video",
+      type: capsule.type || "audio",
       duration: capsule.duration || "",
       price: capsule.price ?? "",
       date: capsule.date ? String(capsule.date).slice(0, 10) : new Date().toISOString().slice(0, 10),
-      // garde thumbnail affiché côté carte, mais on ne le gère pas ici
     });
-    setMediaFile(null);
-    setThumbFile(null);
+    setMediaFile(null); // optionnel en edit
+    setThumbFile(null); // optionnel en edit
     setStatus({ ok: "", error: "" });
     setOpen(true);
     setErrors({});
@@ -470,7 +472,6 @@ export default function CapsulesPage() {
     if (!form.description.trim()) next.description = "Description requise.";
     if (!form.date) next.date = "Date requise.";
 
-    // Prix: obligatoire + > 0
     const priceNum = Number(form.price);
     if (form.price === "" || Number.isNaN(priceNum)) next.price = "Prix invalide.";
     else if (priceNum <= 0) next.price = "Le prix doit être > 0.";
@@ -497,31 +498,27 @@ export default function CapsulesPage() {
     setSaving(true);
     try {
       if (mode === "create") {
-        // 1) Demande URL upload média
+        // 1) URL upload media (audio/video)
         const upMedia = await getCapsuleUploadUrl({
           filename: mediaFile.name,
           contentType: mediaFile.type,
+          type: form.type, // ✅ important (audio|video)
         });
 
-        // 2) PUT vers S3
+        // 2) PUT S3
         await uploadToS3PresignedPUT({ url: upMedia.data.url, file: mediaFile });
         const s3Key = upMedia.data.key;
 
-        // 3) Thumbnail (optionnel)
-        let thumbnail = null;
-        if (thumbFile) {
-          const upThumb = await getThumbnailUploadUrl({
-            filename: thumbFile.name,
-            contentType: thumbFile.type,
-          });
-          await uploadToS3PresignedPUT({ url: upThumb.data.url, file: thumbFile });
+        // 3) URL upload thumbnail (obligatoire chez toi)
+        const upThumb = await getThumbnailUploadUrl({
+          filename: thumbFile.name,
+          contentType: thumbFile.type,
+        });
+        await uploadToS3PresignedPUT({ url: upThumb.data.url, file: thumbFile });
+        const thumbnail = upThumb.data.publicUrl || upThumb.data.key;
 
-          // selon ton backend: publicUrl ou key
-          thumbnail = upThumb.data.publicUrl || upThumb.data.key || null;
-        }
-
-        // 4) Création DB (JSON)
-        const payload = {
+        // 4) Create DB
+        await createAdminCapsule({
           title: form.title.trim(),
           description: form.description.trim(),
           category: form.category.trim(),
@@ -531,13 +528,37 @@ export default function CapsulesPage() {
           date: form.date,
           s3Key,
           thumbnail,
-        };
+        });
 
-        await createAdminCapsule(payload);
         setStatus({ ok: "✅ Capsule créée.", error: "" });
       } else {
-        // ✅ update simple (JSON)
-        const payload = {
+        // ===== EDIT : remplacement optionnel media + thumbnail =====
+        let s3Key = editingCapsule?.s3Key;
+        let thumbnail = editingCapsule?.thumbnail;
+
+        // Remplace media (optionnel)
+        if (mediaFile) {
+          const upMedia = await getCapsuleUploadUrl({
+            filename: mediaFile.name,
+            contentType: mediaFile.type,
+            type: form.type, // ✅ doit refléter le type final
+          });
+          await uploadToS3PresignedPUT({ url: upMedia.data.url, file: mediaFile });
+          s3Key = upMedia.data.key;
+        }
+
+        // Remplace thumbnail (optionnel)
+        if (thumbFile) {
+          const upThumb = await getThumbnailUploadUrl({
+            filename: thumbFile.name,
+            contentType: thumbFile.type,
+          });
+          await uploadToS3PresignedPUT({ url: upThumb.data.url, file: thumbFile });
+          thumbnail = upThumb.data.publicUrl || upThumb.data.key;
+        }
+
+        // Update DB (on envoie aussi s3Key/thumbnail finaux)
+        await updateAdminCapsule(editingId, {
           title: form.title.trim(),
           description: form.description.trim(),
           category: form.category.trim(),
@@ -545,9 +566,10 @@ export default function CapsulesPage() {
           duration: form.duration.trim(),
           price: Number(form.price),
           date: form.date,
-        };
+          s3Key,
+          thumbnail,
+        });
 
-        await updateAdminCapsule(editingId, payload);
         setStatus({ ok: "✅ Capsule mise à jour.", error: "" });
       }
 
@@ -587,7 +609,7 @@ export default function CapsulesPage() {
       </Header>
 
       <SmallInfo>
-        L’administrateur peut <strong>ajouter</strong>, <strong>modifier</strong> et <strong>supprimer</strong> des capsules, sans voir d’informations techniques.
+        Vous pouvez <strong>ajouter</strong>, <strong>modifier</strong> et <strong>supprimer</strong> des capsules, sans voir d’informations techniques.
       </SmallInfo>
 
       <Toolbar>
@@ -650,76 +672,85 @@ export default function CapsulesPage() {
               <BackButton onClick={closeModal}>Fermer</BackButton>
             </ModalHeader>
 
-            {/* === FORMULAIRE === */}
+            {/* ===== FORM ===== */}
             <Grid2>
               <Label>
                 Titre
-                <FieldInput
-                  value={form.title}
-                  onChange={(e) => onChange("title", e.target.value)}
-                />
-                {!form.title.trim() && status.error && (
-                  <StatusText $error>Champ requis</StatusText>
+                {errors.title ? (
+                  <>
+                    <FieldInputError value={form.title} onChange={(e) => onChange("title", e.target.value)} />
+                    <ErrorText>{errors.title}</ErrorText>
+                  </>
+                ) : (
+                  <FieldInput value={form.title} onChange={(e) => onChange("title", e.target.value)} />
                 )}
               </Label>
 
               <Label>
                 Catégorie
-                <FieldInput
-                  value={form.category}
-                  onChange={(e) => onChange("category", e.target.value)}
-                />
-                {!form.category.trim() && status.error && (
-                  <StatusText $error>Champ requis</StatusText>
+                {errors.category ? (
+                  <>
+                    <FieldInputError value={form.category} onChange={(e) => onChange("category", e.target.value)} />
+                    <ErrorText>{errors.category}</ErrorText>
+                  </>
+                ) : (
+                  <FieldInput value={form.category} onChange={(e) => onChange("category", e.target.value)} />
                 )}
               </Label>
 
               <Label>
                 Type
-                <FieldSelect
-                  value={form.type}
-                  onChange={(e) => onChange("type", e.target.value)}
-                >
-                  <option value="">— Choisir —</option>
-                  <option value="audio">Audio</option>
-                  <option value="video">Vidéo</option>
-                </FieldSelect>
-                {!form.type && status.error && (
-                  <StatusText $error>Champ requis</StatusText>
+                {errors.type ? (
+                  <>
+                    <FieldSelectError value={form.type} onChange={(e) => onChange("type", e.target.value)}>
+                      <option value="">— Choisir —</option>
+                      <option value="audio">Audio</option>
+                      <option value="video">Vidéo</option>
+                    </FieldSelectError>
+                    <ErrorText>{errors.type}</ErrorText>
+                  </>
+                ) : (
+                  <FieldSelect value={form.type} onChange={(e) => onChange("type", e.target.value)}>
+                    <option value="">— Choisir —</option>
+                    <option value="audio">Audio</option>
+                    <option value="video">Vidéo</option>
+                  </FieldSelect>
                 )}
               </Label>
 
               <Label>
                 Durée (ex: 12m30s)
-                <FieldInput
-                  value={form.duration}
-                  onChange={(e) => onChange("duration", e.target.value)}
-                />
-                {!form.duration.trim() && status.error && (
-                  <StatusText $error>Champ requis</StatusText>
+                {errors.duration ? (
+                  <>
+                    <FieldInputError value={form.duration} onChange={(e) => onChange("duration", e.target.value)} />
+                    <ErrorText>{errors.duration}</ErrorText>
+                  </>
+                ) : (
+                  <FieldInput value={form.duration} onChange={(e) => onChange("duration", e.target.value)} />
                 )}
               </Label>
 
               <Label>
                 Prix
-                <FieldInput
-                  value={form.price}
-                  onChange={(e) => onChange("price", e.target.value)}
-                />
-                {(form.price === "" || isNaN(Number(form.price))) && status.error && (
-                  <StatusText $error>Prix invalide</StatusText>
+                {errors.price ? (
+                  <>
+                    <FieldInputError value={form.price} onChange={(e) => onChange("price", e.target.value)} />
+                    <ErrorText>{errors.price}</ErrorText>
+                  </>
+                ) : (
+                  <FieldInput value={form.price} onChange={(e) => onChange("price", e.target.value)} />
                 )}
               </Label>
 
               <Label>
                 Date
-                <FieldInput
-                  type="date"
-                  value={form.date}
-                  onChange={(e) => onChange("date", e.target.value)}
-                />
-                {!form.date && status.error && (
-                  <StatusText $error>Champ requis</StatusText>
+                {errors.date ? (
+                  <>
+                    <FieldInputError type="date" value={form.date} onChange={(e) => onChange("date", e.target.value)} />
+                    <ErrorText>{errors.date}</ErrorText>
+                  </>
+                ) : (
+                  <FieldInput type="date" value={form.date} onChange={(e) => onChange("date", e.target.value)} />
                 )}
               </Label>
             </Grid2>
@@ -727,56 +758,95 @@ export default function CapsulesPage() {
             <div style={{ marginTop: 10 }}>
               <Label>
                 Description
-                <TextArea
-                  value={form.description}
-                  onChange={(e) => onChange("description", e.target.value)}
-                />
-                {!form.description.trim() && status.error && (
-                  <StatusText $error>Champ requis</StatusText>
+                {errors.description ? (
+                  <>
+                    <TextAreaError value={form.description} onChange={(e) => onChange("description", e.target.value)} />
+                    <ErrorText>{errors.description}</ErrorText>
+                  </>
+                ) : (
+                  <TextArea value={form.description} onChange={(e) => onChange("description", e.target.value)} />
                 )}
               </Label>
             </div>
 
-            {/* === FICHIERS === */}
+            {/* ===== FILES ===== */}
             {mode === "create" ? (
               <>
                 <Grid2 style={{ marginTop: 10 }}>
                   <Label>
                     Image de présentation
-                    <FieldInput
-                      type="file"
-                      accept="image/*"
-                      onChange={(e) => setThumbFile(e.target.files?.[0] || null)}
-                    />
-                    {!thumbFile && status.error && (
-                      <StatusText $error>Image requise</StatusText>
+                    {errors.thumbFile ? (
+                      <>
+                        <FieldInputError
+                          type="file"
+                          accept="image/*"
+                          onChange={(e) => setThumbFile(e.target.files?.[0] || null)}
+                        />
+                        <ErrorText>{errors.thumbFile}</ErrorText>
+                      </>
+                    ) : (
+                      <FieldInput
+                        type="file"
+                        accept="image/*"
+                        onChange={(e) => setThumbFile(e.target.files?.[0] || null)}
+                      />
                     )}
                   </Label>
 
                   <Label>
                     Fichier capsule (audio / vidéo)
-                    <FieldInput
-                      type="file"
-                      accept="audio/*,video/*"
-                      onChange={(e) => setMediaFile(e.target.files?.[0] || null)}
-                    />
-                    {!mediaFile && status.error && (
-                      <StatusText $error>Fichier requis</StatusText>
+                    {errors.mediaFile ? (
+                      <>
+                        <FieldInputError
+                          type="file"
+                          accept="audio/*,video/*"
+                          onChange={(e) => setMediaFile(e.target.files?.[0] || null)}
+                        />
+                        <ErrorText>{errors.mediaFile}</ErrorText>
+                      </>
+                    ) : (
+                      <FieldInput
+                        type="file"
+                        accept="audio/*,video/*"
+                        onChange={(e) => setMediaFile(e.target.files?.[0] || null)}
+                      />
                     )}
                   </Label>
                 </Grid2>
 
                 <SmallInfo style={{ marginTop: 10 }}>
-                  ℹ️ Le fichier est envoyé vers S3 avant la création en base de données.
+                  ℹ️ Tous les champs sont obligatoires.
                 </SmallInfo>
               </>
             ) : (
-              <SmallInfo style={{ marginTop: 10 }}>
-                ℹ️ La modification ne remplace pas le fichier capsule existant.
-              </SmallInfo>
+              <>
+                <Grid2 style={{ marginTop: 10 }}>
+                  <Label>
+                    Remplacer l'image de présentation (optionnel)
+                    <FieldInput
+                      type="file"
+                      accept="image/*"
+                      onChange={(e) => setThumbFile(e.target.files?.[0] || null)}
+                    />
+                  </Label>
+
+                  <Label>
+                    Remplacer le fichier capsule (optionnel)
+                    <FieldInput
+                      type="file"
+                      accept="audio/*,video/*"
+                      onChange={(e) => setMediaFile(e.target.files?.[0] || null)}
+                    />
+                  </Label>
+                </Grid2>
+
+                <SmallInfo style={{ marginTop: 10 }}>
+                  ℹ️ Si aucun fichier n'est choisi, les anciens fichiers seront gardés.
+                </SmallInfo>
+              </>
             )}
 
-            {/* === ACTIONS === */}
+            {/* ===== ACTIONS ===== */}
             <ActionsRow style={{ marginTop: 14 }}>
               <PrimaryButton onClick={handleSave} disabled={saving}>
                 {saving ? "Sauvegarde..." : mode === "create" ? "Créer" : "Mettre à jour"}
