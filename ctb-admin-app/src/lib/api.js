@@ -77,3 +77,185 @@ export const getCapsuleUploadUrl = ({ filename, contentType }) =>
 
 export const getThumbnailUploadUrl = ({ filename, contentType }) =>
   api.post("/admin/capsules/thumbnail-upload-url", { filename, contentType });
+
+// ===============================
+// CATALOG (ADMIN)
+// ===============================
+
+// 🔹 GET catalogue complet (admin)
+export const getAdminCatalog = (domain) =>
+  api.get(`/admin/catalog?domain=${encodeURIComponent(domain)}`);
+
+
+// 🔹 CREATE activité
+export const createAdminActivity = (domain, payload) =>
+  api.post(`/admin/catalog/activity`, {
+    domain,
+    ...payload,
+  });
+
+/*
+payload attendu (ex):
+{
+  slug,
+  name,
+  image,
+  order
+}
+*/
+
+
+// 🔹 UPDATE activité
+export const updateAdminActivity = (activityId, payload) =>
+  api.put(`/admin/catalog/activity/${activityId}`, payload);
+
+/*
+payload possible:
+{
+  slug,
+  name,
+  image,
+  order
+}
+*/
+
+
+// 🔹 DELETE activité
+export const deleteAdminActivity = (activityId) =>
+  api.delete(`/admin/catalog/activity/${activityId}`);
+
+
+// ===============================
+// TYPES
+// ===============================
+
+export const createAdminActivityType = (activityId, payload) =>
+  api.post(`/admin/catalog/type`, {
+    activityId,
+    ...payload,
+  });
+
+/*
+payload:
+{
+  key,        // "private" | "group"
+  label,
+  order
+}
+*/
+
+export const updateAdminActivityType = (typeId, payload) =>
+  api.put(`/admin/catalog/type/${typeId}`, payload);
+
+export const deleteAdminActivityType = (typeId) =>
+  api.delete(`/admin/catalog/type/${typeId}`);
+
+
+// ===============================
+// LOCATIONS
+// ===============================
+
+export const createAdminLocation = (typeId, payload) =>
+  api.post(`/admin/catalog/location`, {
+    typeId,
+    ...payload,
+  });
+
+/*
+payload:
+{
+  key,
+  name,
+  external,
+  flexible,
+  link,
+  phone,
+  pricingTitleOverride,
+  pricingDescription1,
+  pricingDescription2,
+  pricingSubtext,
+  pricingHidden,
+  order
+}
+*/
+
+export const updateAdminLocation = (locationId, payload) =>
+  api.put(`/admin/catalog/location/${locationId}`, payload);
+
+export const deleteAdminLocation = (locationId) =>
+  api.delete(`/admin/catalog/location/${locationId}`);
+
+
+// ===============================
+// SESSIONS (catalog sessions)
+// ===============================
+
+export const createAdminCatalogSession = (locationId, payload) =>
+  api.post(`/admin/catalog/session`, {
+    locationId,
+    ...payload,
+  });
+
+/*
+payload:
+{
+  publicId,
+  label,
+  price,
+  durationMinutes,
+  durationText,
+  order
+}
+*/
+
+export const updateAdminCatalogSession = (sessionId, payload) =>
+  api.put(`/admin/catalog/session/${sessionId}`, payload);
+
+export const deleteAdminCatalogSession = (sessionId) =>
+  api.delete(`/admin/catalog/session/${sessionId}`);
+
+
+// ===============================
+// SLOTS
+// ===============================
+
+export const createAdminSlot = (locationId, payload) =>
+  api.post(`/admin/catalog/slot`, {
+    locationId,
+    ...payload,
+  });
+
+/*
+payload:
+{
+  day,
+  time,
+  order
+}
+*/
+
+export const updateAdminSlot = (slotId, payload) =>
+  api.put(`/admin/catalog/slot/${slotId}`, payload);
+
+export const deleteAdminSlot = (slotId) =>
+  api.delete(`/admin/catalog/slot/${slotId}`);
+
+
+// ===============================
+// ORDER / SORT (BONUS RECOMMANDÉ)
+// ===============================
+
+// reorder générique (drag & drop futur)
+export const reorderAdminCatalog = (payload) =>
+  api.post(`/admin/catalog/reorder`, payload);
+
+/*
+payload ex:
+{
+  entity: "activity" | "type" | "location" | "session" | "slot",
+  updates: [
+    { id, order },
+    ...
+  ]
+}
+*/

@@ -166,7 +166,7 @@ export default function Dashboard() {
           <CardTitle>Thérapies Alternatives</CardTitle>
           <CardDesc>Gérer les créneaux, tarifs et réservations.</CardDesc>
           <Actions>
-            <DisabledBtn disabled title="Fonction bientôt disponible">À venir</DisabledBtn>
+            <PrimaryLink to="/therapies">Ouvrir</PrimaryLink>
           </Actions>
         </Card>
 

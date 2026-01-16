@@ -10,6 +10,7 @@ import { AuthProvider } from "./context/AuthProvider";
 import RequireAuth from "./components/RequireAuth";
 import QuotesPage from "./pages/Quotes";
 import CapsulesPage from "./pages/Capsules";
+import AdminTherapiesCatalogPage from "./pages/Therapies";
 
 // 💡 Lazy loading des pages pour perf
 const Login = lazy(() => import("./pages/Login"));
@@ -27,6 +28,7 @@ const router = createBrowserRouter([
       { path: "/newsletter", element: <Newsletter /> },
       { path: "/quotes", element: <QuotesPage /> },
       { path: "/capsules", element: <CapsulesPage /> },
+      { path: "/therapies", element: <AdminTherapiesCatalogPage /> },
     ],
   },
   { path: "*", element: <Navigate to="/login" replace /> },
