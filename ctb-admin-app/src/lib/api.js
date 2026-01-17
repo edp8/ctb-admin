@@ -94,31 +94,9 @@ export const createAdminActivity = (domain, payload) =>
     ...payload,
   });
 
-/*
-payload attendu (ex):
-{
-  slug,
-  name,
-  image,
-  order
-}
-*/
-
-
 // 🔹 UPDATE activité
 export const updateAdminActivity = (activityId, payload) =>
   api.put(`/admin/catalog/activity/${activityId}`, payload);
-
-/*
-payload possible:
-{
-  slug,
-  name,
-  image,
-  order
-}
-*/
-
 
 // 🔹 DELETE activité
 export const deleteAdminActivity = (activityId) =>
@@ -134,15 +112,6 @@ export const createAdminActivityType = (activityId, payload) =>
     activityId,
     ...payload,
   });
-
-/*
-payload:
-{
-  key,        // "private" | "group"
-  label,
-  order
-}
-*/
 
 export const updateAdminActivityType = (typeId, payload) =>
   api.put(`/admin/catalog/type/${typeId}`, payload);
@@ -161,24 +130,6 @@ export const createAdminLocation = (typeId, payload) =>
     ...payload,
   });
 
-/*
-payload:
-{
-  key,
-  name,
-  external,
-  flexible,
-  link,
-  phone,
-  pricingTitleOverride,
-  pricingDescription1,
-  pricingDescription2,
-  pricingSubtext,
-  pricingHidden,
-  order
-}
-*/
-
 export const updateAdminLocation = (locationId, payload) =>
   api.put(`/admin/catalog/location/${locationId}`, payload);
 
@@ -195,18 +146,6 @@ export const createAdminCatalogSession = (locationId, payload) =>
     locationId,
     ...payload,
   });
-
-/*
-payload:
-{
-  publicId,
-  label,
-  price,
-  durationMinutes,
-  durationText,
-  order
-}
-*/
 
 export const updateAdminCatalogSession = (sessionId, payload) =>
   api.put(`/admin/catalog/session/${sessionId}`, payload);
@@ -225,15 +164,6 @@ export const createAdminSlot = (locationId, payload) =>
     ...payload,
   });
 
-/*
-payload:
-{
-  day,
-  time,
-  order
-}
-*/
-
 export const updateAdminSlot = (slotId, payload) =>
   api.put(`/admin/catalog/slot/${slotId}`, payload);
 
@@ -248,14 +178,3 @@ export const deleteAdminSlot = (slotId) =>
 // reorder générique (drag & drop futur)
 export const reorderAdminCatalog = (payload) =>
   api.post(`/admin/catalog/reorder`, payload);
-
-/*
-payload ex:
-{
-  entity: "activity" | "type" | "location" | "session" | "slot",
-  updates: [
-    { id, order },
-    ...
-  ]
-}
-*/

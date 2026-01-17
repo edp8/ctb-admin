@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, useRef } from "react";
 import styled, { keyframes } from "styled-components";
 import { useNavigate } from "react-router-dom";
 
@@ -7,6 +7,10 @@ import {
   createAdminActivity,
   updateAdminActivity,
   deleteAdminActivity,
+  updateAdminLocation,
+  createAdminSlot,
+  updateAdminSlot,
+  deleteAdminSlot,
 } from "../lib/api";
 
 /** ========= Style: identique Capsules ========= */
@@ -473,6 +477,8 @@ export default function AdminTherapiesCatalogPage() {
 
   const [form, setForm] = useState(emptyActivityForm());
 
+  const originalSlotsRef = useRef({});
+
   async function refresh() {
     setLoading(true);
     setErr("");
@@ -544,6 +550,15 @@ export default function AdminTherapiesCatalogPage() {
     };
 
     setForm(formNext);
+    const activeKey = formNext.activeTypeKey;
+    const t = (formNext.types || []).find(x => x.key === activeKey) || formNext.types?.[0];
+    const l = t?.locations?.[0];
+
+    if (l?.id) {
+      originalSlotsRef.current[l.id] = (l.slots || [])
+        .map(s => s.id)
+        .filter(Boolean);
+    }
     setStatus({ ok: "", error: "" });
     setOpen(true);
   };
@@ -619,6 +634,43 @@ export default function AdminTherapiesCatalogPage() {
     });
   };
 
+  const addSlot = () => {
+    setForm((p) => {
+      const next = structuredClone(p);
+      const idx = next.types.findIndex((x) => x.key === next.activeTypeKey);
+      if (idx === -1) return p;
+      if (!next.types[idx].locations?.length) next.types[idx].locations = [ensureLocation(next.types[idx])];
+
+      const slots = next.types[idx].locations[0].slots || [];
+      slots.push({ id: null, day: "Lundi", time: "09:00" });
+      next.types[idx].locations[0].slots = slots;
+      return next;
+    });
+  };
+
+  const updateSlot = (slotIdx, field, value) => {
+    setForm((p) => {
+      const next = structuredClone(p);
+      const idx = next.types.findIndex((x) => x.key === next.activeTypeKey);
+      if (idx === -1) return p;
+      const slots = next.types[idx].locations?.[0]?.slots || [];
+      if (!slots[slotIdx]) return p;
+      slots[slotIdx][field] = value;
+      next.types[idx].locations[0].slots = slots;
+      return next;
+    });
+  };
+
+  const removeSlot = (slotIdx) => {
+    setForm((p) => {
+      const next = structuredClone(p);
+      const idx = next.types.findIndex((x) => x.key === next.activeTypeKey);
+      if (idx === -1) return p;
+      next.types[idx].locations?.[0]?.slots?.splice(slotIdx, 1);
+      return next;
+    });
+  };
+
   const handleSave = async () => {
     setStatus({ ok: "", error: "" });
 
@@ -659,6 +711,12 @@ export default function AdminTherapiesCatalogPage() {
                 link: loc.link || "",
                 phone: loc.phone || "",
 
+                slots: (loc.slots || []).map((s) => ({
+                  id: s.id ?? null,
+                  day: String(s.day ?? "").trim(),
+                  time: String(s.time ?? "").trim(),
+                })),
+
                 pricingTitleOverride: loc.pricingTitleOverride ?? "",
                 pricingDescription1: loc.pricingDescription1 ?? "",
                 pricingDescription2: loc.pricingDescription2 ?? "",
@@ -684,7 +742,61 @@ export default function AdminTherapiesCatalogPage() {
         await createAdminActivity(DOMAIN, payload);
         setStatus({ ok: "✅ Activité créée.", error: "" });
       } else {
-        await updateAdminActivity(form.id, payload);
+        // 1) update nom activité
+        await updateAdminActivity(form.id, { name: form.name.trim() });
+
+        // 2) update location (lieu)
+        const locationId = loc?.id;
+        if (!locationId) throw new Error("Location introuvable (id manquant) en mode edit.");
+
+        await updateAdminLocation(locationId, {
+          key: (loc?.key || "main").trim(),
+          name: loc.name.trim(),
+          external: !!loc.external,
+          flexible: !!loc.flexible,
+          link: loc.link || null,
+          phone: loc.phone || null,
+          exactLocation: loc.exactLocation || null,
+
+          pricingTitleOverride: loc.pricingTitleOverride ?? null,
+          pricingDescription1: loc.pricingDescription1 ?? null,
+          pricingDescription2: loc.pricingDescription2 ?? null,
+          pricingSubtext: loc.pricingSubtext ?? null,
+          pricingHidden: !!loc.pricingHidden,
+        });
+
+        // 3) sync slots (create/update/delete)
+        const originalIds = originalSlotsRef.current[locationId] || [];
+        const currentSlots = (loc?.slots || [])
+          .map(s => ({
+            id: s.id ?? null,
+            day: (s.day ?? "").trim(),
+            time: (s.time ?? "").trim(),
+          }))
+          .filter(s => s.day && s.time); // ignore lignes vides
+
+        const currentIds = currentSlots.map(s => s.id).filter(Boolean);
+
+        // deletions (ids présents avant, plus présents maintenant)
+        const toDelete = originalIds.filter(id => !currentIds.includes(id));
+
+        // creates / updates
+        for (const s of currentSlots) {
+          if (!s.id) {
+            await createAdminSlot(locationId, { day: s.day, time: s.time });
+          } else {
+            await updateAdminSlot(s.id, { day: s.day, time: s.time });
+          }
+        }
+
+        // delete
+        for (const id of toDelete) {
+          await deleteAdminSlot(id);
+        }
+
+        // refresh ref pour prochains edits
+        originalSlotsRef.current[locationId] = currentSlots.map(s => s.id).filter(Boolean);
+
         setStatus({ ok: "✅ Activité mise à jour.", error: "" });
       }
 
@@ -748,6 +860,7 @@ export default function AdminTherapiesCatalogPage() {
             const t0 = a?.types?.[0];
             const l0 = t0?.locations?.[0];
             const sessions = l0?.sessions || [];
+            const slots = l0?.slots || [];
 
             return (
               <Card key={a.id}>
@@ -767,6 +880,30 @@ export default function AdminTherapiesCatalogPage() {
                 </CardTop>
 
                 <Divider />
+
+                {slots.length ? (
+                  <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                    <div style={{ fontWeight: 800, color: COLOR_BASE }}>Plage horaire</div>
+
+                    <SessionList>
+                      {slots.slice(0, 4).map((s, idx) => (
+                        <SessionRow key={s.id || idx}>
+                          <SessionLabel>{(s.day || "—")}</SessionLabel>
+                          <SessionMeta>{(s.time || "—")}</SessionMeta>
+                        </SessionRow>
+                      ))}
+                      {slots.length > 4 && (
+                        <div style={{ fontSize: 12, color: "#777" }}>
+                          +{slots.length - 4} autres…
+                        </div>
+                      )}
+                    </SessionList>
+                    <Divider />
+                  </div>
+                ) : (
+                  <></>
+                )}
+
 
                 <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
                   <div style={{ fontWeight: 800, color: COLOR_BASE }}>Forfaits</div>
@@ -855,6 +992,52 @@ export default function AdminTherapiesCatalogPage() {
             <Divider />
 
             {/* ===== Location + Overrides + Sessions (même niveau) ===== */}
+            <div style={{ display: "flex", justifyContent: "space-between", gap: 10, flexWrap: "wrap" }}>
+              <div style={{ fontWeight: 900, color: COLOR_BASE }}>Plage horaire</div>
+              <PrimaryButton type="button" onClick={addSlot}>
+                + Ajouter une plage
+              </PrimaryButton>
+            </div>
+
+            <div style={{ marginTop: 10, display: "flex", flexDirection: "column", gap: 8 }}>
+              {(active.loc?.slots || []).map((s, idx) => (
+                <div key={s.id || idx} style={{ border: "1px solid #eee", borderRadius: 12, padding: 10 }}>
+                  <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
+                    <Label>
+                      Jour
+                      <FieldInput
+                        placeholder="Lundi"
+                        value={s.day ?? ""}
+                        onChange={(e) => updateSlot(idx, "day", e.target.value)}
+                      />
+                    </Label>
+
+                    <Label>
+                      Heure
+                      <FieldInput
+                        style={{ width: 160 }}
+                        placeholder="09:00"
+                        value={s.time ?? ""}
+                        onChange={(e) => updateSlot(idx, "time", e.target.value)}
+                      />
+                    </Label>
+
+                    <BtnDelete type="button" onClick={() => removeSlot(idx)}>
+                      Supprimer
+                    </BtnDelete>
+                  </div>
+                </div>
+              ))}
+
+              {!active.loc?.slots?.length && (
+                <div style={{ fontSize: 13, color: "#777", marginTop: 8 }}>
+                  Aucune plage horaire.
+                </div>
+              )}
+            </div>
+
+            <Divider />
+
             <Grid2>
               {/* Colonne gauche */}
               <div>
