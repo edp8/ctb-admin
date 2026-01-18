@@ -11,6 +11,7 @@ import RequireAuth from "./components/RequireAuth";
 import QuotesPage from "./pages/Quotes";
 import CapsulesPage from "./pages/Capsules";
 import AdminTherapiesCatalogPage from "./pages/Therapies";
+import AdminMartialArtsCatalogPage from "./pages/ArtsMartiaux";
 
 // 💡 Lazy loading des pages pour perf
 const Login = lazy(() => import("./pages/Login"));
@@ -29,6 +30,7 @@ const router = createBrowserRouter([
       { path: "/quotes", element: <QuotesPage /> },
       { path: "/capsules", element: <CapsulesPage /> },
       { path: "/therapies", element: <AdminTherapiesCatalogPage /> },
+      { path: "/arts-martiaux", element: <AdminMartialArtsCatalogPage /> },
     ],
   },
   { path: "*", element: <Navigate to="/login" replace /> },

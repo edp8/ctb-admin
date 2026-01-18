@@ -9,10 +9,12 @@ import {
   deleteAdminActivity,
 
   createAdminActivityType,
+  // updateAdminActivityType, // (pas utilisé ici)
+  // deleteAdminActivityType, // (pas utilisé ici)
 
   createAdminLocation,
   updateAdminLocation,
-  deleteAdminLocation,
+  deleteAdminLocation, // ✅ AJOUTE ceci dans lib/api si absent
 
   createAdminSlot,
   updateAdminSlot,
@@ -23,10 +25,10 @@ import {
   deleteAdminCatalogSession,
 } from "../lib/api";
 
-/** ========= Style: Thérapies (orange) ========= */
-const COLOR_BASE = "#E87461";
-const COLOR_ACCENT = "#EBA844";
-const FALLBACK_THUMB = "/assets/images/therapies/sophrologie.jpg";
+/** ========= Style: version Arts Martiaux (bleu) ========= */
+const COLOR_BASE = "#0B5FA6";
+const COLOR_ACCENT = "#2FA8FF";
+const FALLBACK_THUMB = "/assets/images/arts/martial.jpg";
 
 const fadeIn = keyframes`
   from { opacity:0; transform: translateY(10px); }
@@ -210,6 +212,34 @@ const BtnDelete = styled(Button)`
   border: 1px solid #f3b6b6;
 `;
 
+const SessionList = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+`;
+
+const SessionRow = styled.div`
+  border: 1px solid #eee;
+  border-radius: 12px;
+  padding: 10px;
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+`;
+
+const SessionLabel = styled.div`
+  font-weight: 800;
+  color: #333;
+  font-size: 13px;
+`;
+
+const SessionMeta = styled.div`
+  font-size: 12px;
+  color: #666;
+`;
+
 const ModalOverlay = styled.div`
   position: fixed;
   inset: 0;
@@ -310,8 +340,8 @@ const PricingCard = styled.div`
   width: 360px;
   border-radius: 18px;
   padding: 18px;
-  background: linear-gradient(180deg, rgba(230, 91, 67, 0.95), rgba(194, 137, 53, 0.95));
-  box-shadow: 0 14px 35px rgba(224, 83, 83, 0.25);
+  background: linear-gradient(180deg, rgba(11, 95, 166, 0.95), rgba(47, 168, 255, 0.95));
+  box-shadow: 0 14px 35px rgba(11, 95, 166, 0.22);
   color: #fff;
 `;
 
@@ -388,13 +418,11 @@ function ensureLocation(typeObj) {
     link: "",
     phone: "",
     exactLocation: "",
-
     pricingTitleOverride: "",
     pricingDescription1: "",
     pricingDescription2: "",
     pricingSubtext: "",
     pricingHidden: false,
-
     slots: [],
     sessions: [],
   };
@@ -417,17 +445,10 @@ function emptyActivityForm() {
     image: "",
     order: 0,
 
-    activeTypeKey: "private",
-    activeLocationIdx: 0,
+    activeTypeKey: "group",     // souvent plus logique en arts martiaux
+    activeLocationIdx: 0,       // ✅ option sélectionnée
 
     types: [
-      {
-        id: null,
-        key: "private",
-        label: "Séance privée",
-        order: 0,
-        locations: [ensureLocation({ key: "private" })],
-      },
       {
         id: null,
         key: "group",
@@ -435,15 +456,22 @@ function emptyActivityForm() {
         order: 0,
         locations: [ensureLocation({ key: "group" })],
       },
+      {
+        id: null,
+        key: "private",
+        label: "Séance privée",
+        order: 0,
+        locations: [ensureLocation({ key: "private" })],
+      },
     ],
   };
 }
 
 /** ================= Component ================= */
 
-export default function AdminTherapiesCatalogPage() {
+export default function AdminMartialArtsCatalogPage() {
   const navigate = useNavigate();
-  const DOMAIN = "therapies";
+  const DOMAIN = "arts-martiaux";
 
   const [catalog, setCatalog] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -492,9 +520,7 @@ export default function AdminTherapiesCatalogPage() {
       if (!q) return true;
 
       const types = a?.types || [];
-      const anyMatch =
-        (a.name || "").toLowerCase().includes(q) ||
-        (a.slug || "").toLowerCase().includes(q);
+      const anyMatch = (a.name || "").toLowerCase().includes(q) || (a.slug || "").toLowerCase().includes(q);
 
       const typeMatch = types.some((t) => {
         const locs = t?.locations || [];
@@ -535,7 +561,7 @@ export default function AdminTherapiesCatalogPage() {
 
   const active = useMemo(() => getActiveTypeLoc(), [form]);
 
-  // ---------- Mutateurs (type actif + option active) ----------
+  // ---------- Mutateurs qui pointent sur (type actif + option active) ----------
   const setLocField = (field, value) => {
     setForm((p) => {
       const next = structuredClone(p);
@@ -543,14 +569,9 @@ export default function AdminTherapiesCatalogPage() {
       if (tIdx === -1) return p;
 
       next.types[tIdx].locations = next.types[tIdx].locations || [];
-      if (!next.types[tIdx].locations.length)
-        next.types[tIdx].locations = [ensureLocation(next.types[tIdx])];
+      if (!next.types[tIdx].locations.length) next.types[tIdx].locations = [ensureLocation(next.types[tIdx])];
 
-      const lIdx = Math.max(
-        0,
-        Math.min(next.activeLocationIdx ?? 0, next.types[tIdx].locations.length - 1)
-      );
-
+      const lIdx = Math.max(0, Math.min(next.activeLocationIdx ?? 0, next.types[tIdx].locations.length - 1));
       next.types[tIdx].locations[lIdx][field] = value;
       return next;
     });
@@ -599,17 +620,12 @@ export default function AdminTherapiesCatalogPage() {
       if (tIdx === -1) return p;
 
       next.types[tIdx].locations = next.types[tIdx].locations || [];
-      if (!next.types[tIdx].locations.length)
-        next.types[tIdx].locations = [ensureLocation(next.types[tIdx])];
+      if (!next.types[tIdx].locations.length) next.types[tIdx].locations = [ensureLocation(next.types[tIdx])];
 
-      const lIdx = Math.max(
-        0,
-        Math.min(next.activeLocationIdx ?? 0, next.types[tIdx].locations.length - 1)
-      );
-
+      const lIdx = Math.max(0, Math.min(next.activeLocationIdx ?? 0, next.types[tIdx].locations.length - 1));
       const loc = next.types[tIdx].locations[lIdx];
-      loc.sessions = loc.sessions || [];
 
+      loc.sessions = loc.sessions || [];
       loc.sessions.push({
         id: null,
         publicId: `new-${Date.now()}`,
@@ -633,7 +649,6 @@ export default function AdminTherapiesCatalogPage() {
       const locs = next.types[tIdx].locations || [];
       const lIdx = Math.max(0, Math.min(next.activeLocationIdx ?? 0, locs.length - 1));
       const loc = locs[lIdx];
-
       if (!loc?.sessions?.[sessIdx]) return p;
 
       loc.sessions[sessIdx][field] = value;
@@ -666,18 +681,13 @@ export default function AdminTherapiesCatalogPage() {
       if (tIdx === -1) return p;
 
       next.types[tIdx].locations = next.types[tIdx].locations || [];
-      if (!next.types[tIdx].locations.length)
-        next.types[tIdx].locations = [ensureLocation(next.types[tIdx])];
+      if (!next.types[tIdx].locations.length) next.types[tIdx].locations = [ensureLocation(next.types[tIdx])];
 
-      const lIdx = Math.max(
-        0,
-        Math.min(next.activeLocationIdx ?? 0, next.types[tIdx].locations.length - 1)
-      );
-
+      const lIdx = Math.max(0, Math.min(next.activeLocationIdx ?? 0, next.types[tIdx].locations.length - 1));
       const loc = next.types[tIdx].locations[lIdx];
-      loc.slots = loc.slots || [];
-      loc.slots.push({ id: null, day: "Lundi", time: "09:00" });
 
+      loc.slots = loc.slots || [];
+      loc.slots.push({ id: null, day: "Mardi", time: "19:00" });
       return next;
     });
   };
@@ -691,7 +701,6 @@ export default function AdminTherapiesCatalogPage() {
       const locs = next.types[tIdx].locations || [];
       const lIdx = Math.max(0, Math.min(next.activeLocationIdx ?? 0, locs.length - 1));
       const loc = locs[lIdx];
-
       if (!loc?.slots?.[slotIdx]) return p;
 
       loc.slots[slotIdx][field] = value;
@@ -727,9 +736,10 @@ export default function AdminTherapiesCatalogPage() {
   const openEdit = (activity) => {
     setMode("edit");
 
-    const tPrivate = ensureType(activity, "private");
     const tGroup = ensureType(activity, "group");
+    const tPrivate = ensureType(activity, "private");
 
+    // on garde *toutes* les locations
     const normalizeType = (t) => ({
       ...t,
       locations: (t?.locations || []).map((l) => ({
@@ -739,8 +749,9 @@ export default function AdminTherapiesCatalogPage() {
       })),
     });
 
-    const types = [normalizeType(tPrivate), normalizeType(tGroup)];
-    const firstExistingTypeKey = activity?.types?.[0]?.key || "private";
+    const types = [normalizeType(tGroup), normalizeType(tPrivate)];
+
+    const firstExistingTypeKey = (activity?.types?.[0]?.key) || "group";
 
     const formNext = {
       ...emptyActivityForm(),
@@ -752,15 +763,15 @@ export default function AdminTherapiesCatalogPage() {
 
     setForm(formNext);
 
-    // ✅ snapshot ids pour delete
+    // ✅ snapshot des ids (pour delete)
     for (const t of (formNext.types || [])) {
       if (t?.id) {
-        originalLocationIdsRef.current[t.id] = (t.locations || []).map((l) => l.id).filter(Boolean);
+        originalLocationIdsRef.current[t.id] = (t.locations || []).map(l => l.id).filter(Boolean);
 
         for (const l of (t.locations || [])) {
           if (l?.id) {
-            originalSlotsRef.current[l.id] = (l.slots || []).map((s) => s.id).filter(Boolean);
-            originalSessionsRef.current[l.id] = (l.sessions || []).map((s) => s.id).filter(Boolean);
+            originalSlotsRef.current[l.id] = (l.slots || []).map(s => s.id).filter(Boolean);
+            originalSessionsRef.current[l.id] = (l.sessions || []).map(s => s.id).filter(Boolean);
           }
         }
       }
@@ -848,12 +859,14 @@ export default function AdminTherapiesCatalogPage() {
     const currentLocIds = (locs || []).map((l) => l.id).filter(Boolean);
     const toDeleteLocs = originalLocIds.filter((id) => !currentLocIds.includes(id));
 
+    // delete removed locations
     for (const locId of toDeleteLocs) {
       await deleteAdminLocation(locId);
       delete originalSlotsRef.current[locId];
       delete originalSessionsRef.current[locId];
     }
 
+    // create/update all current locations + children
     const ensuredIds = [];
 
     for (const l of (locs || [])) {
@@ -864,8 +877,6 @@ export default function AdminTherapiesCatalogPage() {
         flexible: !!l.flexible,
         link: (l.link || "").trim() || null,
         phone: (l.phone || "").trim() || null,
-
-        // ✅ IMPORTANT (fix exactLocation en edit)
         exactLocation: (l.exactLocation || "").trim() || null,
 
         pricingTitleOverride: (l.pricingTitleOverride || "").trim() || null,
@@ -885,6 +896,7 @@ export default function AdminTherapiesCatalogPage() {
         originalSlotsRef.current[locationId] = [];
         originalSessionsRef.current[locationId] = [];
       } else {
+        console.log("exactLocation payload =", payload.exactLocation);
         await updateAdminLocation(locationId, payload);
       }
 
@@ -931,7 +943,8 @@ export default function AdminTherapiesCatalogPage() {
         // 2) create types that have content, then create locations + children
         for (const t of (form.types || [])) {
           const locs = (t.locations || []).filter((l) => (l.name || "").trim());
-          if (!locs.length) continue;
+
+          if (!locs.length) continue; // skip empty type
 
           const createdTypeRes = await createAdminActivityType(activityId, {
             key: t.key,
@@ -941,6 +954,7 @@ export default function AdminTherapiesCatalogPage() {
           const createdType = createdTypeRes?.data || createdTypeRes;
           const typeId = createdType?.id;
 
+          // create locations + children (no delete needed in create)
           for (const l of locs) {
             const createdLocRes = await createAdminLocation(typeId, {
               key: (l.key || "main").trim(),
@@ -949,8 +963,6 @@ export default function AdminTherapiesCatalogPage() {
               flexible: !!l.flexible,
               link: (l.link || "").trim() || null,
               phone: (l.phone || "").trim() || null,
-
-              // ✅ IMPORTANT (create exactLocation)
               exactLocation: (l.exactLocation || "").trim() || null,
 
               pricingTitleOverride: (l.pricingTitleOverride || "").trim() || null,
@@ -982,8 +994,11 @@ export default function AdminTherapiesCatalogPage() {
 
         setStatus({ ok: "✅ Activité créée.", error: "" });
       } else {
+        // EDIT
         await updateAdminActivity(form.id, { name: form.name.trim() });
 
+        // pour chaque type : s'il existe -> sync locations
+        // si type id manquant mais contenu => on le crée puis on sync
         for (const t of (form.types || [])) {
           const locs = (t.locations || []).filter((l) => (l.name || "").trim());
           const hasContent = locs.length > 0;
@@ -1001,8 +1016,9 @@ export default function AdminTherapiesCatalogPage() {
             originalLocationIdsRef.current[typeId] = [];
           }
 
-          if (!typeId) continue;
+          if (!typeId) continue; // type absent + pas de contenu => skip
 
+          // sync locations + slots + sessions
           await syncLocationsForType(typeId, locs);
         }
 
@@ -1033,15 +1049,12 @@ export default function AdminTherapiesCatalogPage() {
   };
 
   // preview basé sur l’option active
-  const preview = useMemo(
-    () => pricingPreviewModel({ actName: form.name, loc: active.loc }),
-    [form.name, active.loc]
-  );
+  const preview = useMemo(() => pricingPreviewModel({ actName: form.name, loc: active.loc }), [form.name, active.loc]);
 
   return (
     <Page>
       <Header>
-        <Title>Catalogue des offres – Thérapies</Title>
+        <Title>Catalogue des offres – Arts martiaux</Title>
         <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
           <PrimaryButton onClick={openCreate}>+ Ajouter une activité</PrimaryButton>
           <BackButton onClick={() => navigate("/dashboard")}>← Tableau de bord</BackButton>
@@ -1049,7 +1062,7 @@ export default function AdminTherapiesCatalogPage() {
       </Header>
 
       <SmallInfo>
-        Vous pouvez <strong>ajouter</strong>, <strong>modifier</strong> ou <strong>supprimer</strong> des offres (séances, ateliers, forfaits, offres spéciales, etc.)
+        Vous pouvez <strong>ajouter</strong>, <strong>modifier</strong> ou <strong>supprimer</strong> des offres d'activités (cours, stages, offres spéciales, etc.)
       </SmallInfo>
 
       <Toolbar>
@@ -1070,7 +1083,7 @@ export default function AdminTherapiesCatalogPage() {
           {filtered.map((a) => {
             const types = a?.types || [];
 
-            // chaque "offre" = location rattachée à un type
+            // flatten: chaque "offre" = location, rattachée à un type
             const offers = types.flatMap((t) =>
               (t?.locations || []).map((l) => ({
                 typeKey: t?.key,
@@ -1081,11 +1094,14 @@ export default function AdminTherapiesCatalogPage() {
 
             return (
               <Card key={a.id} style={{ gap: 8, padding: 14 }}>
+                {/* Header activité */}
                 <CardTop style={{ alignItems: "center" }}>
                   <Thumb
                     src={a.image || FALLBACK_THUMB}
                     alt={a.name}
-                    onError={(e) => { e.currentTarget.src = FALLBACK_THUMB; }}
+                    onError={(e) => {
+                      e.currentTarget.src = FALLBACK_THUMB;
+                    }}
                     style={{ width: 54, height: 46 }}
                   />
                   <div style={{ flex: 1, minWidth: 0 }}>
@@ -1104,13 +1120,12 @@ export default function AdminTherapiesCatalogPage() {
 
                 <Divider style={{ margin: "10px 0" }} />
 
+                {/* Offres (locations) */}
                 {offers.length ? (
                   <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-                    {offers.map(({ typeLabel: tl, loc }, i) => {
+                    {offers.map(({ typeLabel, loc }, i) => {
                       const slots = loc?.slots || [];
-                      const sessions = (loc?.sessions || [])
-                        .slice()
-                        .sort((x, y) => (x.order ?? 0) - (y.order ?? 0));
+                      const sessions = (loc?.sessions || []).slice().sort((x, y) => (x.order ?? 0) - (y.order ?? 0));
 
                       return (
                         <div
@@ -1122,19 +1137,32 @@ export default function AdminTherapiesCatalogPage() {
                             background: "#fff",
                           }}
                         >
-                          <div style={{ display: "flex", justifyContent: "space-between", gap: 10, flexWrap: "wrap" }}>
+                          {/* Titre offre */}
+                          <div style={{ display: "flex", justifyContent: "space-between", fontWeight: 900, gap: 10, flexWrap: "wrap" }}>
                             <div style={{ color: COLOR_BASE, fontSize: 13 }}>
-                              <strong>{loc?.name?.trim() ? loc.name : `Offre ${i + 1}`}</strong>
+                              {loc?.name?.trim() ? loc.name : `Offre ${i + 1}`}
                             </div>
-                            <div style={{ fontSize: 12, color: "#666" }}>{tl}</div>
+                            <div style={{ fontSize: 12, color: "#666" }}>
+                              {typeLabel}
+                            </div>
                           </div>
 
-                          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginTop: 8 }}>
+                          {/* Slots + Forfaits en 2 colonnes compactes */}
+                          <div
+                            style={{
+                              display: "grid",
+                              gridTemplateColumns: "1fr 1fr",
+                              gap: 10,
+                              marginTop: 8,
+                            }}
+                          >
+                            {/* Slots */}
                             {slots.length ? (
                               <div>
                                 <div style={{ fontSize: 12, fontWeight: 700, color: "#333", marginBottom: 6 }}>
                                   Plage horaire
                                 </div>
+
                                 <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
                                   {slots.slice(0, 4).map((s, idx) => (
                                     <div
@@ -1150,7 +1178,7 @@ export default function AdminTherapiesCatalogPage() {
                                         fontSize: 12,
                                       }}
                                     >
-                                      <span>{s.day || "—"}</span>
+                                      <span >{s.day || "—"}</span>
                                       <span style={{ color: "#666" }}>{s.time || "—"}</span>
                                     </div>
                                   ))}
@@ -1165,6 +1193,7 @@ export default function AdminTherapiesCatalogPage() {
                               <></>
                             )}
 
+                            {/* Forfaits */}
                             <div>
                               <div style={{ fontSize: 12, fontWeight: 700, color: "#333", marginBottom: 6 }}>
                                 Forfaits
@@ -1223,13 +1252,12 @@ export default function AdminTherapiesCatalogPage() {
         </Content>
       )}
 
-      {/* ===== MODAL ===== */}
       {open && (
         <ModalOverlay onMouseDown={closeModal}>
           <Modal onMouseDown={(e) => e.stopPropagation()}>
             <ModalHeader>
               <ModalTitle>
-                {mode === "create" ? "Ajouter une activité (Thérapies)" : "Modifier l’activité"}
+                {mode === "create" ? "Ajouter une activité (Arts martiaux)" : "Modifier l’activité"}
               </ModalTitle>
               <BackButton onClick={closeModal}>Fermer</BackButton>
             </ModalHeader>
@@ -1238,13 +1266,16 @@ export default function AdminTherapiesCatalogPage() {
             <Grid2>
               <Label>
                 Nom
-                <FieldInput value={form.name} onChange={(e) => onChange("name", e.target.value)} />
+                <FieldInput
+                  value={form.name}
+                  onChange={(e) => onChange("name", e.target.value)}
+                />
               </Label>
 
               <Label>
                 Type à éditer
                 <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-                  {["private", "group"].map((k) => (
+                  {["group", "private"].map((k) => (
                     <button
                       key={k}
                       type="button"
@@ -1259,12 +1290,12 @@ export default function AdminTherapiesCatalogPage() {
                         fontSize: 13,
                       }}
                     >
-                      {k === "private" ? "Privée" : "Groupe"}
+                      {k === "group" ? "Groupe" : "Privée"}
                     </button>
                   ))}
                 </div>
                 <div style={{ fontSize: 12, color: "#777", marginTop: 6 }}>
-                  Astuce: tu peux gérer les deux types (ex: même thérapie en privé + groupe) dans la même activité.
+                  Astuce: tu peux gérer les deux types (ex: Ninjutsu groupe + privé) dans la même activité.
                 </div>
               </Label>
             </Grid2>
@@ -1319,7 +1350,7 @@ export default function AdminTherapiesCatalogPage() {
                 <FieldInput
                   value={active.loc?.name ?? ""}
                   onChange={(e) => setLocField("name", e.target.value)}
-                  placeholder="ex: Séance au centre | Offre spéciale | À domicile"
+                  placeholder="ex: Cours à Rock-Forest"
                 />
               </Label>
 
@@ -1350,7 +1381,7 @@ export default function AdminTherapiesCatalogPage() {
                     <Label>
                       Jour
                       <FieldInput
-                        placeholder="Lundi"
+                        placeholder="Mardi"
                         value={s.day ?? ""}
                         onChange={(e) => updateSlot(idx, "day", e.target.value)}
                       />
@@ -1360,7 +1391,7 @@ export default function AdminTherapiesCatalogPage() {
                       Heure
                       <FieldInput
                         style={{ width: 160 }}
-                        placeholder="09:00"
+                        placeholder="19:00"
                         value={s.time ?? ""}
                         onChange={(e) => updateSlot(idx, "time", e.target.value)}
                       />
@@ -1450,7 +1481,7 @@ export default function AdminTherapiesCatalogPage() {
                         <Label>
                           Nom du forfait
                           <FieldInput
-                            placeholder="ex: 3 séances + suivi"
+                            placeholder="ex: Cours illimités + 3 séances privées"
                             value={s.label ?? ""}
                             onChange={(e) => updateSession(idx, "label", e.target.value)}
                           />
@@ -1461,7 +1492,7 @@ export default function AdminTherapiesCatalogPage() {
                           <FieldInput
                             style={{ width: 120 }}
                             type="number"
-                            placeholder="120"
+                            placeholder="250"
                             value={s.price ?? ""}
                             onChange={(e) => updateSession(idx, "price", Number(e.target.value))}
                           />

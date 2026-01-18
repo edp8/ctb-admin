@@ -158,13 +158,14 @@ export default function Dashboard() {
           <CardTitle>Cours – Arts martiaux</CardTitle>
           <CardDesc>Créer, planifier et gérer les cours.</CardDesc>
           <Actions>
-            <DisabledBtn disabled title="Fonction bientôt disponible">À venir</DisabledBtn>
+            <PrimaryLink to="/arts-martiaux">Ouvrir</PrimaryLink>
+            {/* <DisabledBtn disabled title="Fonction bientôt disponible">À venir</DisabledBtn> */}
           </Actions>
         </Card>
 
         <Card title="Bientôt disponible">
           <CardTitle>Thérapies Alternatives</CardTitle>
-          <CardDesc>Gérer les créneaux, tarifs et réservations.</CardDesc>
+          <CardDesc>Gérer les créneaux, tarifs et offres spéciales.</CardDesc>
           <Actions>
             <PrimaryLink to="/therapies">Ouvrir</PrimaryLink>
           </Actions>
