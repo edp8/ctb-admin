@@ -1097,7 +1097,7 @@ export default function AdminMartialArtsCatalogPage() {
                 {/* Header activité */}
                 <CardTop style={{ alignItems: "center" }}>
                   <Thumb
-                    src={a.image || FALLBACK_THUMB}
+                    src={FALLBACK_THUMB}
                     alt={a.name}
                     onError={(e) => {
                       e.currentTarget.src = FALLBACK_THUMB;
